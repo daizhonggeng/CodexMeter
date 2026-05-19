@@ -1,0 +1,21 @@
+# PlatformIO build artifacts
+firmware/.pio/
+firmware/.vscode/
+
+# Local ESP-IDF/EIM installer config
+eim_config.toml
+
+# OS
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Claude Code
+.claude/
+
+# Node tooling deps (npm install --no-save)
+tools/node_modules/
+tools/package-lock.json
+
+# Local firmware backups
+firmware/backups/
