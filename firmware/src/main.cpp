@@ -31,7 +31,7 @@
 #include "pet_miku.h"
 
 // Physical buttons on the strip board:
-//   BTN_BACK   (GPIO 0)  — BOOT short press cycles to the next recent session
+//   BTN_BACK   (GPIO 0)  — BOOT short press cycles sessions; long press opens recent sessions
 //   BTN_FWD    (GPIO 18) — reserved on this build
 //   AXP PWR    (PMU)     — long press shuts the device down
 #define BTN_BACK 0
@@ -1565,6 +1565,7 @@ static void request_codex_next_session_from_boot() {
     static uint32_t raw_changed_ms = 0;
     static uint32_t stable_down_ms = 0;
     static uint32_t last_boot_action_ms = 0;
+    static bool long_press_handled = false;
 
     uint32_t now = millis();
     bool raw_down = digitalRead(BTN_BACK) == LOW;
@@ -1579,9 +1580,29 @@ static void request_codex_next_session_from_boot() {
     stable_down = raw_down;
     if (stable_down) {
         stable_down_ms = now;
-    } else if (was_down) {
+        long_press_handled = false;
+        return;
+    }
+
+    if (was_down) {
         uint32_t held_ms = now - stable_down_ms;
-        if (held_ms >= 120 && held_ms < 1200 && now - last_boot_action_ms >= 700) {
+        if (held_ms >= 1200 && now - last_boot_action_ms >= 700) {
+            last_boot_action_ms = now;
+            long_press_handled = true;
+            if (!codex_session_list_open) {
+                open_codex_session_list();
+            } else {
+                render_codex_session_list();
+                ble_request_session_list();
+            }
+            if (codex_output_status_label) {
+                lv_label_set_text(codex_output_status_label, "LIST");
+            }
+            Serial.println("SESSION_LIST_REQUEST boot");
+            return;
+        }
+        if (!long_press_handled && held_ms >= 120 && held_ms < 1200 &&
+            now - last_boot_action_ms >= 700) {
             last_boot_action_ms = now;
             close_codex_session_list();
             if (codex_output_status_label) {
@@ -1590,6 +1611,7 @@ static void request_codex_next_session_from_boot() {
             ble_request_session_next();
             Serial.println("SESSION_NEXT_REQUEST boot");
         }
+        long_press_handled = false;
     }
 }
 

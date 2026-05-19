@@ -13,6 +13,12 @@ context window progress, pet state, and recent session switching.
 | --- | --- | --- |
 | ![Live sync](screenshots/device-live.png) | ![Work log](screenshots/device-worklog.png) | ![Quick reply](screenshots/device-quick-answer.png) |
 
+## Real Photos
+
+| Desk setup | Session list | Chinese output |
+| --- | --- | --- |
+| ![Desk live](screenshots/real-photos/device-desk-live.png) | ![Desk sessions](screenshots/real-photos/device-desk-sessions.png) | ![Desk Chinese](screenshots/real-photos/device-desk-cn.png) |
+
 ## Current Feature Set
 
 ### 1. Codex quota display
@@ -57,11 +63,14 @@ context window progress, pet state, and recent session switching.
 - Vertical swipes move the selection inside the session list
 - Tapping again confirms the selected session
 - A short BOOT press jumps directly to the next recent session
+- A long BOOT press of about 1.2 seconds opens the recent session list directly
 
 ### 6. Device integration and debugging
 
 - Custom BLE GATT service for live sync
 - USB serial for flashing, screenshots, pet atlas updates, and diagnostics
+- When BLE is unavailable but USB is connected, the daemon automatically falls back to live serial mirroring
+- Quota refresh, BOOT-driven session switching, and session-list requests also travel back to the host over USB when directly connected
 - Framebuffer screenshot export
 - Local control page for daemon status and logs
 
@@ -81,6 +90,7 @@ context window progress, pet state, and recent session switching.
 | Input | Behavior |
 | --- | --- |
 | BOOT short press | Jump to the next recent session |
+| BOOT long press for about 1.2 seconds | Open the recent session list |
 | PWR long press for about 3 seconds | Shut the board down |
 
 ### Pet sync rules
@@ -89,6 +99,13 @@ context window progress, pet state, and recent session switching.
 2. If the device does not have that pet atlas yet, it asks for a USB update.
 3. Once USB is connected, the daemon writes the current pet atlas into device cache.
 4. After that, normal runtime updates only need animation-selection commands.
+
+### USB fallback sync rules
+
+1. BLE remains the preferred path for normal live runtime sync.
+2. If BLE is temporarily unavailable but USB is still attached, the daemon automatically switches to live serial mirroring.
+3. In live serial mode, device-side actions such as quota refresh, recent-session switching, and session-list requests are also sent back to the host.
+4. Once BLE is available again, normal live traffic can continue over BLE.
 
 ## How It Works
 
@@ -101,7 +118,7 @@ context window progress, pet state, and recent session switching.
 - extracting recent assistant output and status from rollout logs
 - loading the currently selected pet directory
 - building compact payloads for quota, output, context, sessions, and pet state
-- sending those payloads over BLE or serial
+- sending those payloads over BLE first, with live USB serial mirroring and event return paths available when the board is wired
 
 ### Device firmware
 
@@ -116,7 +133,7 @@ context window progress, pet state, and recent session switching.
 ### Transport split
 
 - **BLE**: normal live sync for quota, output, context, session list, and state updates
-- **USB serial**: flashing, screenshots, pet atlas updates, and offline debugging
+- **USB serial**: flashing, screenshots, pet atlas updates, live fallback mirroring when BLE is unavailable, and device event return traffic
 
 ## Hardware
 
@@ -244,4 +261,3 @@ Natural next steps, if the project keeps growing, would be:
 - more device-side views
 - richer pet state mapping
 - deeper diagnostic screens
-

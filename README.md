@@ -13,6 +13,12 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 | --- | --- | --- |
 | ![Live sync](screenshots/device-live.png) | ![Work log](screenshots/device-worklog.png) | ![Quick reply](screenshots/device-quick-answer.png) |
 
+## 实拍
+
+| 桌面实拍 | 会话列表 | 中文输出 |
+| --- | --- | --- |
+| ![Desk live](screenshots/real-photos/device-desk-live.png) | ![Desk sessions](screenshots/real-photos/device-desk-sessions.png) | ![Desk Chinese](screenshots/real-photos/device-desk-cn.png) |
+
 ## 当前已经实现的功能
 
 ### 1. Codex 额度显示
@@ -57,11 +63,14 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 - 在会话列表中上下滑动可以移动选中项
 - 再次点击消息区可确认切换到当前选中会话
 - 短按 BOOT 键可以直接切到下一个最近会话
+- 长按 BOOT 键约 1.2 秒可以直接打开最近会话列表
 
 ### 6. 设备联动与调试能力
 
 - 自定义 BLE GATT 服务用于实时同步
 - USB 串口用于刷机、截图、宠物资源写入和调试
+- 当 BLE 不可用但 USB 已连接时，daemon 会自动通过串口接管实时同步
+- 设备侧的额度刷新、BOOT 切会话、会话列表请求在 USB 直连时也会回传主机
 - 支持 framebuffer 截图导出
 - 提供本地控制页查看 daemon 状态和日志
 
@@ -81,6 +90,7 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 | 输入 | 行为 |
 | --- | --- |
 | BOOT 短按 | 切换到下一个最近会话 |
+| BOOT 长按约 1.2 秒 | 打开最近会话列表 |
 | PWR 长按约 3 秒 | 关机 |
 
 ### 宠物同步规则
@@ -89,6 +99,13 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 2. 如果设备里还没有这个宠物的 atlas，会提示插线更新。
 3. 插上 USB 后，daemon 会把当前宠物资源写入设备缓存。
 4. 之后只需要发送动画状态选择指令，不需要每次整包重传图片。
+
+### USB 兜底同步规则
+
+1. 正常情况下，设备日常实时同步优先走 BLE。
+2. 如果 BLE 暂时不可用，但 USB 线仍然连接，daemon 会自动切到串口实时镜像模式。
+3. 在串口实时镜像模式下，额度刷新、最近会话切换、列表请求等设备侧操作也会回传主机。
+4. 一旦 BLE 恢复，日常状态同步可以继续走 BLE。
 
 ## 工作原理
 
@@ -101,7 +118,7 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 - 从 rollout 日志中提取最新助手输出和状态
 - 读取当前选中的宠物目录
 - 把额度、输出、上下文、会话列表、宠物状态组合成紧凑 payload
-- 通过 BLE 或串口发给设备
+- 优先通过 BLE 发给设备，在 USB 在线时也支持串口实时镜像和事件回传
 
 ### 设备侧固件
 
@@ -116,7 +133,7 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 ### 传输方式
 
 - **BLE**：日常实时同步，发送额度、输出、上下文、会话列表、状态切换
-- **USB 串口**：刷机、截图、宠物 atlas 写入、离线调试
+- **USB 串口**：刷机、截图、宠物 atlas 写入、BLE 不可用时的实时镜像，以及设备事件回传
 
 ## 硬件信息
 

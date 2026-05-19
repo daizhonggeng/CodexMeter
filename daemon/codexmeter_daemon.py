@@ -972,6 +972,47 @@ def serial_update_pet_if_available(args: argparse.Namespace,
         return False
 
 
+def serial_mirror_payloads_if_available(args: argparse.Namespace,
+                                        payloads: list[dict[str, Any]],
+                                        pet_anim_state: str) -> bool:
+    port = find_serial_port(args.auto_serial_port)
+    if not port:
+        return False
+    try:
+        import serial  # type: ignore
+    except ImportError as exc:
+        print(f"serial live mirror unavailable: {exc}", flush=True)
+        return False
+
+    try:
+        with serial.Serial(port, args.serial_baud, timeout=2, write_timeout=3) as ser:
+            ser.dtr = False
+            ser.rts = False
+            time.sleep(0.3)
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+            write_payloads_to_open_serial(
+                ser,
+                payloads,
+                None,
+                False,
+                False,
+                args.preview_grid,
+                args.pet_max_size,
+                args.pet_padding,
+                args.pet_frame_cells,
+                args.pet_crop_visible,
+                args.pet_anim_frames,
+                pet_anim_state,
+            )
+        save_runtime_state(serial_port=port, last_serial_ok=int(time.time()))
+        return True
+    except (OSError, RuntimeError, TimeoutError, serial.SerialException) as exc:
+        print(f"usb live mirror failed: {exc}", flush=True)
+        save_runtime_state(serial_port=port, last_error=str(exc))
+        return False
+
+
 def pet_update_required_payloads(payloads: list[dict[str, Any]],
                                  pet_dir: Path | None,
                                  project: str) -> list[dict[str, Any]]:
@@ -1302,8 +1343,11 @@ def watch_probe_marker(args: argparse.Namespace) -> tuple[Any, ...]:
 
 def wait_for_probe_change(args: argparse.Namespace,
                           last_marker: tuple[Any, ...] | None,
-                          deadline: float) -> tuple[bool, tuple[Any, ...] | None]:
+                          deadline: float,
+                          serial_handle: Any | None = None) -> tuple[bool, tuple[Any, ...] | None]:
     while True:
+        if serial_handle is not None:
+            pump_serial_device_requests(serial_handle)
         marker = watch_probe_marker(args)
         if last_marker is None or marker != last_marker:
             return True, marker
@@ -1319,6 +1363,67 @@ def wait_for_probe_change(args: argparse.Namespace,
         if time.monotonic() >= deadline:
             return False, marker
         time.sleep(max(0.05, args.probe_interval))
+
+
+def pump_serial_device_requests(ser: Any) -> None:
+    while True:
+        try:
+            waiting = getattr(ser, "in_waiting", 0)
+        except Exception:
+            waiting = 0
+        if waiting <= 0:
+            return
+        try:
+            line = ser.readline().decode("utf-8", errors="replace").strip()
+        except Exception:
+            return
+        if not line:
+            return
+        if line.startswith(("JSON_ACK", "JSON_NACK", "PET_", "OUTPUT_IMAGE_", "{\"ready\":true}")):
+            continue
+        if line.startswith("REFRESH_REQUEST"):
+            _BLE_REFRESH_EVENT.set()
+            save_runtime_state(last_device_refresh_request=int(time.time()))
+            print(f"serial refresh requested: {line}", flush=True)
+            continue
+        if line.startswith("SESSION_LIST_REQUEST"):
+            _SESSION_LIST_EVENT.set()
+            print(f"serial session list requested: {line}", flush=True)
+            continue
+        if line.startswith("SESSION_NEXT_REQUEST"):
+            _SESSION_NEXT_EVENT.set()
+            print(f"serial session next requested: {line}", flush=True)
+            continue
+        if line.startswith("SESSION_SELECT_REQUEST"):
+            match = re.search(r"SESSION_SELECT_REQUEST\s+(\d+)", line)
+            if match:
+                global _SESSION_SELECT_INDEX
+                with _SESSION_SELECT_LOCK:
+                    _SESSION_SELECT_INDEX = int(match.group(1))
+                    _SESSION_SELECT_EVENT.set()
+                print(f"serial session select requested {match.group(1)}", flush=True)
+            continue
+
+
+def open_live_serial_handle(args: argparse.Namespace) -> Any | None:
+    port = find_serial_port(args.auto_serial_port)
+    if not port:
+        return None
+    try:
+        import serial  # type: ignore
+        ser = serial.Serial(port, args.serial_baud, timeout=0.05, write_timeout=3)
+        ser.dtr = False
+        ser.rts = False
+        time.sleep(0.4)
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+        save_runtime_state(serial_port=port)
+        print(f"serial live bridge connected: {port}", flush=True)
+        return ser
+    except Exception as exc:
+        save_runtime_state(serial_port=port, last_error=str(exc))
+        print(f"serial live bridge unavailable: {exc}", flush=True)
+        return None
 
 
 def latest_assistant_text(rollout_path: Path | None) -> str | None:
@@ -2111,6 +2216,7 @@ def emit_payloads(args: argparse.Namespace, usage: UsagePayload,
                   pet_anim_state: str,
                   serial_handle: Any | None = None) -> None:
     payloads_to_emit = payloads
+    state = load_runtime_state()
     save_runtime_state(
         current_pet=current_pet_label(pet_dir),
         current_pet_state=pet_anim_state,
@@ -2156,7 +2262,9 @@ def emit_payloads(args: argparse.Namespace, usage: UsagePayload,
                                    args.pet_frame_cells, args.pet_crop_visible,
                                    args.pet_anim_frames, pet_anim_state,
                                    args.serial_baud)
-    if args.ble:
+    elif args.ble and state.get("ble") != "connected":
+        serial_mirror_payloads_if_available(args, payloads_to_emit, pet_anim_state)
+    if args.ble and serial_handle is None:
         try:
             asyncio.run(send_ble_payloads(payloads_to_emit, args.device_name))
             save_runtime_state(ble="connected", last_ble_ok=int(time.time()), last_error="")
@@ -2432,13 +2540,17 @@ def main() -> int:
         last_marker: tuple[Any, ...] | None = None
         last_output_key: tuple[Any, ...] | None = None
         last_pet_key: tuple[Any, ...] | None = None
+        live_serial = None
         cached_usage = read_usage(args)
         next_quota_refresh = time.monotonic()
         while True:
+            if live_serial is None:
+                live_serial = open_live_serial_handle(args)
             changed, last_marker = wait_for_probe_change(
                 args,
                 last_marker,
                 next_quota_refresh,
+                live_serial,
             )
             quota_due = not changed
             if quota_due:
@@ -2452,7 +2564,7 @@ def main() -> int:
             if session_list_requested:
                 pet_dir = args.pet_dir or find_default_pet_dir()
                 emit_payloads(args, cached_usage, [build_session_list_payload(cwd)],
-                              pet_dir, args.pet_state)
+                              pet_dir, args.pet_state, live_serial)
                 continue
             usage, payloads, pet_dir, pet_anim_state = build_payloads(args, cached_usage)
             current_output_key = output_payload_key(payloads)
@@ -2482,7 +2594,16 @@ def main() -> int:
             )
             if not should_emit:
                 continue
-            emit_payloads(args, usage, payloads, pet_dir, pet_anim_state)
+            try:
+                emit_payloads(args, usage, payloads, pet_dir, pet_anim_state, live_serial)
+            except Exception:
+                if live_serial is not None:
+                    try:
+                        live_serial.close()
+                    except Exception:
+                        pass
+                    live_serial = None
+                raise
             last_output_key = current_output_key
             last_pet_key = current_pet_key
             if changed:
