@@ -7,6 +7,11 @@ Waveshare ESP32-S3-Touch-LCD-3.49 and keeps the most useful live session data
 visible on a dedicated screen: quota usage, reset times, recent Codex output,
 context window progress, pet state, and recent session switching.
 
+> The host-side tooling and background-service flow currently support `macOS`
+> only. The firmware can still be built independently, but the install,
+> daemon, control-page, and resident-service workflow documented here is
+> currently macOS-specific.
+
 ## Screenshots
 
 | Live sync | Long reply | Short reply |
@@ -144,6 +149,8 @@ context window progress, pet state, and recent session switching.
 - Power and shutdown: onboard PMU handling
 
 ## Quick Start
+
+> The host-side steps below currently target `macOS` only.
 
 ### 1. Install host dependencies
 
