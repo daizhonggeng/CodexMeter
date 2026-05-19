@@ -234,7 +234,6 @@ CodexMeter
 ```
 
 ## Repository Layout
-
 | Path | Purpose |
 | --- | --- |
 | `firmware/` | PlatformIO firmware project |
@@ -245,6 +244,28 @@ CodexMeter
 | `flash.sh` | serial flashing helper |
 | `install.sh` | macOS LaunchAgent installer |
 | `screenshot.sh` | framebuffer screenshot helper |
+
+## Credits and Attribution
+
+### Pet artwork
+
+The pet artwork used in the current live demo comes from:
+
+- Name: `Mikoto`
+- Author: `@legeling`
+- Type: anime character
+
+Install command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/legeling/awesome-codex-pet/main/scripts/install-pet.sh | bash -s -- mikoto--lingxiaotian
+```
+
+### Project inspiration
+
+The original device-companion idea behind CodexMeter was inspired by:
+
+- [HermannBjorgvin/Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter)
 
 ## Project Status
 

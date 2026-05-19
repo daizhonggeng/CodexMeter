@@ -234,7 +234,6 @@ CodexMeter
 ```
 
 ## 仓库结构
-
 | 路径 | 说明 |
 | --- | --- |
 | `firmware/` | PlatformIO 固件工程 |
@@ -245,6 +244,28 @@ CodexMeter
 | `flash.sh` | 串口刷机脚本 |
 | `install.sh` | macOS LaunchAgent 安装脚本 |
 | `screenshot.sh` | framebuffer 截图脚本 |
+
+## 致谢与说明
+
+### 宠物形象来源
+
+当前实机演示里使用的宠物形象来自：
+
+- 名称：`Mikoto`
+- 作者：`@legeling`
+- 类型：动漫人物
+
+安装命令：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/legeling/awesome-codex-pet/main/scripts/install-pet.sh | bash -s -- mikoto--lingxiaotian
+```
+
+### 项目想法来源
+
+CodexMeter 的最初设备化想法受下面这个项目启发：
+
+- [HermannBjorgvin/Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter)
 
 ## 当前状态说明
 
