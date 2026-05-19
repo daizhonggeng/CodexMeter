@@ -115,8 +115,8 @@ void splash_init(lv_obj_t *parent) {
     label_status = lv_label_create(splash_container);
     lv_label_set_text(label_status,
         "no animations loaded\n\n"
-        "run tools/scrape_claudepix.js\n"
-        "then tools/convert_to_c.js");
+        "regenerate the splash bundle\n"
+        "and rebuild firmware");
     lv_obj_set_style_text_font(label_status, &font_styrene_28, 0);
     lv_obj_set_style_text_color(label_status, lv_color_hex(0xb0aea5), 0);
     lv_obj_set_style_text_align(label_status, LV_TEXT_ALIGN_CENTER, 0);

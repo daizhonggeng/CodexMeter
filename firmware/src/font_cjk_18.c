@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 18 px
  * Bpp: 1
- * Opts: --font /System/Library/Fonts/Supplemental/Arial Unicode.ttf -r 0x20-0x7E,0x4E00-0x9FA5 --size 18 --format lvgl --bpp 1 --no-compress --no-kerning --lv-font-name font_cjk_18 -o firmware/src/font_cjk_18.c --lv-include lvgl.h
+ * Opts: generated with lv_font_conv from local font sources for CodexMeter
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE

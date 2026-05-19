@@ -30,10 +30,10 @@
 #include "usage_rate.h"
 #include "pet_miku.h"
 
-// Physical buttons (global, screen-independent):
-//   BTN_BACK   (GPIO 0)  — left,  send Space (Claude Code voice mode push-to-talk)
-//   BTN_FWD    (GPIO 18) — right, send Shift+Tab (Claude Code mode toggle)
-//   AXP PWR    (PMU)     — middle, cycle screens; on splash, cycle animations
+// Physical buttons on the strip board:
+//   BTN_BACK   (GPIO 0)  — BOOT short press cycles to the next recent session
+//   BTN_FWD    (GPIO 18) — reserved on this build
+//   AXP PWR    (PMU)     — long press shuts the device down
 #define BTN_BACK 0
 #define BTN_FWD  18
 
@@ -2572,10 +2572,7 @@ void loop() {
     imu_tick();
     splash_tick();
 
-    // Three-button input (global, screen-independent):
-    //   LEFT  (GPIO 0)  → Space (voice-mode push-to-talk; press & release tracked)
-    //   RIGHT (GPIO 18) → Shift+Tab (Claude Code mode toggle)
-    //   PWR   (AXP)     → cycle screens; on splash, cycle animations
+    // Legacy round-display input handling.
     {
 #if BOARD_HAS_SIDE_BUTTONS
         static bool back_was = false, fwd_was = false;

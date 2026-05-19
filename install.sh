@@ -7,6 +7,8 @@ LABEL="com.codexmeter.sync"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_PATH="$PLIST_DIR/$LABEL.plist"
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"
+DEFAULT_CODEX_BIN="/Applications/Codex.app/Contents/Resources/codex"
+CODEX_BIN="${CODEX_BIN:-$DEFAULT_CODEX_BIN}"
 LOG_DIR="$HOME/Library/Logs/CodexMeter"
 
 if [ -z "$PYTHON_BIN" ]; then
@@ -18,6 +20,7 @@ echo "=== CodexMeter - Install macOS LaunchAgent ==="
 echo ""
 echo "Project: $SCRIPT_DIR"
 echo "Python:  $PYTHON_BIN"
+echo "Codex:   $CODEX_BIN"
 echo "Label:   $LABEL"
 echo ""
 
@@ -36,6 +39,8 @@ cat > "$PLIST_PATH" <<EOF
   <array>
     <string>$PYTHON_BIN</string>
     <string>$SCRIPT_DIR/daemon/codexmeter_daemon.py</string>
+    <string>--codex-bin</string>
+    <string>$CODEX_BIN</string>
     <string>--watch</string>
     <string>--ble</string>
     <string>--sync-pet-sprite</string>

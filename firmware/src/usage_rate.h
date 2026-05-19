@@ -1,8 +1,8 @@
 #pragma once
 
 // Tracks short-term rate of change in session_pct (%/min) so the UI can react
-// to *how heavily* Claude is being used right now, not just the current bucket
-// level. Returns one of 4 group indices for the splash to pick animations from.
+// to how heavily the current Codex session is moving right now, not just the
+// current bucket level. Returns one of 4 group indices for splash animation.
 
 // Feed in the latest session percentage every time fresh BLE data arrives.
 void usage_rate_sample(float session_pct);

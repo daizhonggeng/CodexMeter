@@ -10,11 +10,11 @@
 
 #define DEVICE_NAME "CodexMeter"
 
-// Custom GATT UUIDs for data channel
-#define SERVICE_UUID        "4c41555a-4465-7669-6365-000000000001"
-#define RX_CHAR_UUID        "4c41555a-4465-7669-6365-000000000002"  // host writes here
-#define TX_CHAR_UUID        "4c41555a-4465-7669-6365-000000000003"  // device ack/nack notifies
-#define REQ_CHAR_UUID       "4c41555a-4465-7669-6365-000000000004"  // device-initiated refresh request
+// Custom GATT UUIDs for the CodexMeter sync channel.
+#define SERVICE_UUID        "6f1c0001-7f7d-4a2b-9b7a-3490c0d3e001"
+#define RX_CHAR_UUID        "6f1c0002-7f7d-4a2b-9b7a-3490c0d3e001"  // host writes here
+#define TX_CHAR_UUID        "6f1c0003-7f7d-4a2b-9b7a-3490c0d3e001"  // device ack/nack notifies
+#define REQ_CHAR_UUID       "6f1c0004-7f7d-4a2b-9b7a-3490c0d3e001"  // device-initiated refresh request
 
 #define BLE_BUF_SIZE 512
 
@@ -155,7 +155,7 @@ void ble_init(void) {
     // --- HID keyboard service ---
     hid_dev = new NimBLEHIDDevice(server);
     hid_dev->setReportMap((uint8_t*)HID_REPORT_MAP, sizeof(HID_REPORT_MAP));
-    hid_dev->setManufacturer("Anthropic");
+    hid_dev->setManufacturer("CodexMeter");
     hid_dev->setPnp(0x02, 0x05AC, 0x820A, 0x0210);  // BT SIG, generic keyboard
     hid_dev->setHidInfo(0x00, 0x02);  // country=0, flags=normally connectable
     hid_dev->setBatteryLevel(100);

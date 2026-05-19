@@ -5,23 +5,16 @@
 CodexMeter is a personal hardware project. No project-wide open-source license
 is declared for this repository at the moment.
 
-## Upstream Inspiration
-
-- CodexMeter was developed from a personal adaptation of Clawdmeter.
-- When this repository was reviewed on 2026-05-19, the upstream Clawdmeter
-  repository did not publish a project-wide `LICENSE` file.
-- Because of that, this repository keeps attribution visible and does not claim
-  that inherited structure or ideas were relicensed here.
-
 ## Bundled Third-Party Code
 
-- `firmware/src/axs15231b/*` and `firmware/src/touch/*` retain upstream SPDX
-  Apache-2.0 notices from Espressif and related vendor code.
+- `firmware/src/axs15231b/*` retains SPDX and vendor notices from the panel
+  driver sources it ships with.
+- `firmware/src/touch/*` retains SPDX and vendor notices from the touch driver
+  sources it ships with.
 
 ## Bundled Generated Assets
 
-- The firmware tree still contains generated LVGL font source files that should
-  be treated as project assets, not as independently relicensed upstream fonts.
-- Before redistributing this project beyond personal use, replace or audit any
-  generated font data and other inherited visual assets that may have separate
-  licensing requirements.
+- The firmware tree contains generated LVGL font source files. Treat them as
+  project assets and review the underlying font licenses before redistribution.
+- Device screenshots in `screenshots/` are runtime captures from the current
+  firmware build and are included as documentation assets.

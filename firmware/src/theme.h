@@ -1,8 +1,8 @@
 #pragma once
 #include <lvgl.h>
 
-// Design tokens — single source of truth for UI colors. Anthropic-inspired
-// dark palette, AMOLED-friendly (true black bg).
+// Design tokens for the legacy round display UI. Dark palette tuned for
+// high contrast and true-black backgrounds.
 #define THEME_BG       lv_color_hex(0x000000)   // screen background
 #define THEME_PANEL    lv_color_hex(0x1f1f1e)   // card/zone fill
 #define THEME_TEXT     lv_color_hex(0xfaf9f5)   // primary text

@@ -13,7 +13,7 @@ LV_FONT_DECLARE(font_styrene_24);
 LV_FONT_DECLARE(font_styrene_20);
 LV_FONT_DECLARE(font_mono_32);
 
-// Anthropic brand palette — design tokens live in theme.h
+// Shared dark palette — design tokens live in theme.h.
 #include "theme.h"
 #define COL_BG        THEME_BG
 #define COL_PANEL     THEME_PANEL
@@ -76,9 +76,8 @@ static const char* const spinner_frames[] = {
 #define SPINNER_COUNT 6
 #define SPINNER_PHASES (2 * (SPINNER_COUNT - 1))  // 10: ping-pong 0..5..0
 
-// Per-frame hold time. Modeled on Claude Code's spinner (Cavalry triangle
-// oscillator, range 0..5, period 5s) — turn-around frames (0 and 5) appear
-// once per cycle, middle frames twice, so 0/5 read as held longer.
+// Per-frame hold time for the legacy round-display spinner. Turn-around frames
+// linger longer so the ping-pong motion reads clearly at a glance.
 static const uint16_t spinner_ms[SPINNER_COUNT] = {
     260, 130, 130, 130, 130, 260,
 };
@@ -94,7 +93,7 @@ static const char* const anim_messages[] = {
     "Cerebrating", "Frolicking", "Reticulating",
     "Channelling", "Generating", "Ruminating",
     "Churning", "Germinating", "Scheming",
-    "Clauding", "Hatching", "Schlepping",
+    "Clarifying", "Hatching", "Schlepping",
     "Coalescing", "Herding", "Shimmying",
     "Cogitating", "Honking", "Shucking",
     "Combobulating", "Hustling", "Simmering",
