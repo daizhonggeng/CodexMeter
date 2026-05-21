@@ -7,10 +7,9 @@ Waveshare ESP32-S3-Touch-LCD-3.49 and keeps the most useful live session data
 visible on a dedicated screen: quota usage, reset times, recent Codex output,
 context window progress, pet state, and recent session switching.
 
-> The host-side tooling and background-service flow currently support `macOS`
-> only. The firmware can still be built independently, but the install,
-> daemon, control-page, and resident-service workflow documented here is
-> currently macOS-specific.
+> The host-side daemon now supports both `Windows` and `macOS`. On Windows it
+> supports BLE sync, automatic USB serial-port detection, pet asset updates,
+> the local control page, and screenshot capture.
 
 ## Screenshots
 
@@ -150,8 +149,6 @@ context window progress, pet state, and recent session switching.
 
 ## Quick Start
 
-> The host-side steps below currently target `macOS` only.
-
 ### 1. Install host dependencies
 
 ```bash
@@ -166,11 +163,23 @@ pio run -d firmware -e waveshare_lcd_349
 
 ### 3. Flash over USB
 
+macOS / Linux:
+
 ```bash
 ./flash.sh /dev/cu.usbmodem1101
 ```
 
+Windows:
+
+```powershell
+.\flash-windows.ps1 -Port COM3
+```
+
+When `-Port` is omitted, PlatformIO selects the upload port automatically.
+
 ### 4. Start the daemon
+
+macOS / Linux:
 
 ```bash
 python3 daemon/codexmeter_daemon.py \
@@ -178,6 +187,19 @@ python3 daemon/codexmeter_daemon.py \
   --ble \
   --sync-pet-sprite \
   --cwd "$PWD"
+```
+
+Windows:
+
+```powershell
+.\run-windows.ps1 -InstallDeps
+```
+
+The Windows runner enables BLE and auto-selects the USB serial port by default.
+To pin a specific port:
+
+```powershell
+.\run-windows.ps1 -SerialPort COM3
 ```
 
 ### 5. Install the macOS background service
@@ -190,9 +212,19 @@ python3 daemon/codexmeter_daemon.py \
 
 ### Screenshot capture
 
+macOS / Linux:
+
 ```bash
 ./screenshot.sh screenshots/capture.png /dev/cu.usbmodem1101
 ```
+
+Windows:
+
+```powershell
+.\screenshot-windows.ps1 -Output screenshots\capture.png -Port COM3
+```
+
+When `-Port` is omitted, the tool auto-selects the highest-priority USB serial port.
 
 ### Control page
 
@@ -216,7 +248,7 @@ The control page exposes:
 ### Daemon flags
 
 - `--serial-port /dev/cu.usbmodem1101`
-- `--auto-serial-port "/dev/cu.usbmodem*"`
+- `--auto-serial-port "/dev/cu.usbmodem*"`; on Windows the default is `auto`, and `COM3` or `COM*` can also be used
 - `--serial-baud 921600`
 - `--control-port 3490`
 - `--pet-dir PATH`
@@ -249,8 +281,11 @@ CodexMeter
 | `daemon/codexmeter_daemon.py` | host-side sync daemon |
 | `screenshots/` | device screenshots used in the docs |
 | `flash.sh` | serial flashing helper |
+| `flash-windows.ps1` | Windows serial flashing helper |
 | `install.sh` | macOS LaunchAgent installer |
 | `screenshot.sh` | framebuffer screenshot helper |
+| `screenshot-windows.ps1` | Windows framebuffer screenshot helper |
+| `run-windows.ps1` | Windows foreground daemon runner |
 
 ## Credits and Attribution
 

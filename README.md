@@ -7,8 +7,8 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 一块常亮的小屏里：额度、重置时间、当前会话输出、上下文窗口进度、宠物状态，
 以及最近会话切换。
 
-> 当前主机侧工具链和后台服务仅提供 `macOS` 版本支持。设备固件可独立编译，
-> 但 README 中的安装、守护进程、控制页和后台常驻流程目前都以 macOS 为准。
+> 当前主机侧 daemon 已支持 `Windows` 和 `macOS`。Windows 下支持 BLE 同步、
+> USB 串口自动识别、宠物资源写入、控制页和截图工具。
 
 ## 截图
 
@@ -148,8 +148,6 @@ Waveshare ESP32-S3-Touch-LCD-3.49 上，把当前最值得抬头看一眼的信�
 
 ## 快速开始
 
-> 下面的主机侧步骤当前仅适用于 `macOS`。
-
 ### 1. 安装主机依赖
 
 ```bash
@@ -164,11 +162,23 @@ pio run -d firmware -e waveshare_lcd_349
 
 ### 3. USB 刷机
 
+macOS / Linux：
+
 ```bash
 ./flash.sh /dev/cu.usbmodem1101
 ```
 
+Windows：
+
+```powershell
+.\flash-windows.ps1 -Port COM3
+```
+
+不传 `-Port` 时由 PlatformIO 自动选择端口。
+
 ### 4. 启动 daemon
+
+macOS / Linux：
 
 ```bash
 python3 daemon/codexmeter_daemon.py \
@@ -176,6 +186,18 @@ python3 daemon/codexmeter_daemon.py \
   --ble \
   --sync-pet-sprite \
   --cwd "$PWD"
+```
+
+Windows：
+
+```powershell
+.\run-windows.ps1 -InstallDeps
+```
+
+默认会自动选择 USB 串口并启用 BLE。若要指定端口：
+
+```powershell
+.\run-windows.ps1 -SerialPort COM3
 ```
 
 ### 5. 安装 macOS 后台服务
@@ -188,9 +210,19 @@ python3 daemon/codexmeter_daemon.py \
 
 ### 截图
 
+macOS / Linux：
+
 ```bash
 ./screenshot.sh screenshots/capture.png /dev/cu.usbmodem1101
 ```
+
+Windows：
+
+```powershell
+.\screenshot-windows.ps1 -Output screenshots\capture.png -Port COM3
+```
+
+不传 `-Port` 时自动选择优先级最高的 USB 串口。
 
 ### 控制页
 
@@ -214,7 +246,7 @@ http://127.0.0.1:3490/
 ### daemon 参数
 
 - `--serial-port /dev/cu.usbmodem1101`
-- `--auto-serial-port "/dev/cu.usbmodem*"`
+- `--auto-serial-port "/dev/cu.usbmodem*"`，Windows 下默认是 `auto`，也可以传 `COM3` 或 `COM*`
 - `--serial-baud 921600`
 - `--control-port 3490`
 - `--pet-dir PATH`
@@ -247,8 +279,11 @@ CodexMeter
 | `daemon/codexmeter_daemon.py` | 主机侧同步 daemon |
 | `screenshots/` | README 使用的设备截图 |
 | `flash.sh` | 串口刷机脚本 |
+| `flash-windows.ps1` | Windows 串口刷机脚本 |
 | `install.sh` | macOS LaunchAgent 安装脚本 |
 | `screenshot.sh` | framebuffer 截图脚本 |
+| `screenshot-windows.ps1` | Windows framebuffer 截图脚本 |
+| `run-windows.ps1` | Windows 前台 daemon 启动脚本 |
 
 ## 致谢与说明
 

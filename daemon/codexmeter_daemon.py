@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fnmatch
 import glob
 import html
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,6 +26,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -35,6 +37,7 @@ from typing import Any
 
 
 DEVICE_NAME = "CodexMeter"
+DEFAULT_AUTO_SERIAL_PORT = "auto" if os.name == "nt" else "/dev/cu.usbmodem*"
 SERVICE_UUID = "6f1c0001-7f7d-4a2b-9b7a-3490c0d3e001"
 RX_CHAR_UUID = "6f1c0002-7f7d-4a2b-9b7a-3490c0d3e001"
 REQ_CHAR_UUID = "6f1c0004-7f7d-4a2b-9b7a-3490c0d3e001"
@@ -45,9 +48,19 @@ _LAST_PET_ATLAS_KEY: tuple[Any, ...] | None = None
 _LAST_PET_ATLAS_MAP: dict[int, int] = {}
 _LAST_PET_SELECT_KEY: tuple[Any, ...] | None = None
 _LAST_OUTPUT_IMAGE_KEY: tuple[Any, ...] | None = None
-_STATE_PATH = Path("/tmp/codexmeter-sync-state.json")
-_RUNTIME_STATE_PATH = Path("/tmp/codexmeter-runtime-state.json")
-_LOG_PATH = Path("/tmp/codexmeter-daemon.log")
+
+
+def default_runtime_dir() -> Path:
+    if os.name == "nt":
+        root = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+        return Path(root) / "CodexMeter"
+    return Path(tempfile.gettempdir())
+
+
+_RUNTIME_DIR = default_runtime_dir()
+_STATE_PATH = _RUNTIME_DIR / "codexmeter-sync-state.json"
+_RUNTIME_STATE_PATH = _RUNTIME_DIR / "codexmeter-runtime-state.json"
+_LOG_PATH = _RUNTIME_DIR / "codexmeter-daemon.log"
 _DAEMON_STARTED_AT_MS = int(time.time() * 1000)
 _DISPLAYED_ASSISTANT_MESSAGE_KEYS: set[tuple[int, str]] = set()
 _SESSION_SELECT_EVENT = threading.Event()
@@ -800,6 +813,7 @@ def load_sync_state() -> dict[str, Any]:
 
 def save_sync_state(state: dict[str, Any]) -> None:
     try:
+        _STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _STATE_PATH.write_text(json.dumps(state, separators=(",", ":")), encoding="utf-8")
     except OSError:
         pass
@@ -813,14 +827,19 @@ def load_runtime_state() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def write_runtime_state(state: dict[str, Any]) -> None:
+    try:
+        _RUNTIME_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _RUNTIME_STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def save_runtime_state(**updates: Any) -> None:
     state = load_runtime_state()
     state.update(updates)
     state["updated_at"] = int(time.time())
-    try:
-        _RUNTIME_STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    except OSError:
-        pass
+    write_runtime_state(state)
 
 
 def tail_text(path: Path, max_bytes: int = 12000) -> str:
@@ -891,10 +910,44 @@ def pet_cache_is_current(pet_key: tuple[Any, ...] | None) -> bool:
 
 
 def find_serial_port(pattern: str) -> str | None:
+    if os.name == "nt":
+        return find_windows_serial_port(pattern)
     candidates = sorted(glob.glob(pattern))
     if not candidates and pattern == "/dev/cu.usbmodem*":
         candidates = sorted(glob.glob("/dev/tty.usbmodem*"))
     return candidates[0] if candidates else None
+
+
+def find_windows_serial_port(pattern: str) -> str | None:
+    try:
+        from serial.tools import list_ports  # type: ignore
+    except ImportError:
+        return None
+
+    ports = list(list_ports.comports())
+    if not ports:
+        return None
+
+    wanted = (pattern or "auto").strip()
+    if wanted.lower() in {"auto", "usb", "com*"}:
+        candidates = ports
+    else:
+        candidates = [
+            port for port in ports
+            if fnmatch.fnmatch(port.device.upper(), wanted.upper())
+            or fnmatch.fnmatch((port.description or "").upper(), wanted.upper())
+        ]
+        if not candidates and re.fullmatch(r"COM\d+", wanted, re.IGNORECASE):
+            return wanted.upper()
+
+    def score(port: Any) -> tuple[int, int, str]:
+        text = f"{port.device} {port.description or ''} {port.hwid or ''}".upper()
+        usb_score = 0 if any(token in text for token in ("USB", "CP210", "CH340", "CDC", "UART", "JTAG")) else 1
+        match = re.search(r"COM(\d+)", port.device.upper())
+        port_number = int(match.group(1)) if match else 999
+        return (usb_score, port_number, port.device)
+
+    return sorted(candidates, key=score)[0].device if candidates else None
 
 
 def serial_update_pet_if_available(args: argparse.Namespace,
@@ -2068,13 +2121,13 @@ async def send_ble_payloads(payloads: list[dict[str, Any]], device_name: str) ->
     except ImportError as exc:
         raise RuntimeError("bleak is required for --ble") from exc
 
-    device = await BleakScanner.find_device_by_filter(
-        lambda d, ad: d.name == device_name or device_name in (ad.local_name or ""),
-        timeout=15,
-    )
-    if not device:
-        raise RuntimeError(f"BLE device not found: {device_name}")
     try:
+        device = await BleakScanner.find_device_by_filter(
+            lambda d, ad: d.name == device_name or device_name in (ad.local_name or ""),
+            timeout=15,
+        )
+        if not device:
+            raise RuntimeError(f"BLE device not found: {device_name}")
         async with BleakClient(device) as client:
             for data in ble_payload_packets(payloads):
                 await client.write_gatt_char(RX_CHAR_UUID, data, response=True)
@@ -2273,7 +2326,7 @@ def emit_payloads(args: argparse.Namespace, usage: UsagePayload,
             if args.watch:
                 print(f"ble send skipped after error: {exc}", flush=True)
             else:
-                raise
+                raise SystemExit(str(exc)) from exc
 
 
 def control_page_html() -> str:
@@ -2364,6 +2417,10 @@ class ControlHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urllib.parse.urlparse(self.path).path
         if path == "/api/restart":
+            if os.name == "nt":
+                save_runtime_state(last_error="Restart is not available from the Windows foreground runner")
+                self._send(501, "application/json", b'{"ok":false,"error":"restart unavailable on Windows"}')
+                return
             subprocess.Popen([
                 "/bin/launchctl",
                 "kickstart",
@@ -2373,12 +2430,7 @@ class ControlHandler(BaseHTTPRequestHandler):
             self._send(202, "application/json", b'{"ok":true}')
             return
         if path == "/api/pet-update":
-            state = load_runtime_state()
-            state["manual_pet_update_requested"] = int(time.time())
-            try:
-                _RUNTIME_STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-            except OSError:
-                pass
+            save_runtime_state(manual_pet_update_requested=int(time.time()))
             self._send(202, "application/json", b'{"ok":true}')
             return
         self._send(404, "application/json", b'{"ok":false}')
@@ -2404,10 +2456,7 @@ def consume_manual_pet_update_request() -> bool:
     requested = state.pop("manual_pet_update_requested", None)
     if requested is None:
         return False
-    try:
-        _RUNTIME_STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    except OSError:
-        pass
+    write_runtime_state(state)
     return True
 
 
@@ -2429,8 +2478,8 @@ def main() -> int:
     parser.add_argument("--device-name", default=DEVICE_NAME, help="BLE advertised name")
     parser.add_argument("--serial-port", default=None, help="write compact JSON lines to a serial port")
     parser.add_argument("--serial-baud", type=int, default=921600, help="serial baud for sync traffic")
-    parser.add_argument("--auto-serial-port", default="/dev/cu.usbmodem*",
-                        help="serial glob used by BLE mode for automatic pet updates")
+    parser.add_argument("--auto-serial-port", default=DEFAULT_AUTO_SERIAL_PORT,
+                        help="serial glob used by BLE mode for automatic pet updates; use auto on Windows")
     parser.add_argument("--control-port", type=int, default=3490,
                         help="local control page port; set 0 to disable")
     parser.add_argument("--sync-pet-sprite", action="store_true",
@@ -2581,10 +2630,18 @@ def main() -> int:
             manual_pet_update = consume_manual_pet_update_request()
             pet_needs_update = args.sync_pet_sprite and not pet_cache_is_current(current_render_key)
             if (manual_pet_update or pet_needs_update) and find_serial_port(args.auto_serial_port):
+                if live_serial is not None:
+                    try:
+                        live_serial.close()
+                    except Exception:
+                        pass
+                    live_serial = None
                 project = project_name_for_cwd(args.cwd.expanduser().resolve(), args.project)
                 if serial_update_pet_if_available(args, payloads, pet_dir, pet_anim_state, project):
                     pet_needs_update = False
                     last_pet_key = None
+            elif args.sync_pet_sprite:
+                save_runtime_state(pet_update="synced")
             should_emit = (
                 quota_due
                 or session_changed
