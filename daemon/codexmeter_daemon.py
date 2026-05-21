@@ -1461,6 +1461,7 @@ def pump_serial_device_requests(ser: Any) -> None:
 def open_live_serial_handle(args: argparse.Namespace) -> Any | None:
     port = find_serial_port(args.auto_serial_port)
     if not port:
+        save_runtime_state(serial_port=None)
         return None
     try:
         import serial  # type: ignore
@@ -2612,8 +2613,22 @@ def main() -> int:
             )
             if session_list_requested:
                 pet_dir = args.pet_dir or find_default_pet_dir()
-                emit_payloads(args, cached_usage, [build_session_list_payload(cwd)],
-                              pet_dir, args.pet_state, live_serial)
+                try:
+                    emit_payloads(args, cached_usage, [build_session_list_payload(cwd)],
+                                  pet_dir, args.pet_state, live_serial)
+                except Exception as exc:
+                    if live_serial is not None:
+                        try:
+                            live_serial.close()
+                        except Exception:
+                            pass
+                        live_serial = None
+                        save_runtime_state(serial_port=None, last_error=str(exc))
+                        print(f"serial live bridge reset after error: {exc}", flush=True)
+                        emit_payloads(args, cached_usage, [build_session_list_payload(cwd)],
+                                      pet_dir, args.pet_state, None)
+                    else:
+                        raise
                 continue
             usage, payloads, pet_dir, pet_anim_state = build_payloads(args, cached_usage)
             current_output_key = output_payload_key(payloads)
