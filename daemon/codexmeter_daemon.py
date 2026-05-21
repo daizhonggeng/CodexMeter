@@ -2653,14 +2653,18 @@ def main() -> int:
                 continue
             try:
                 emit_payloads(args, usage, payloads, pet_dir, pet_anim_state, live_serial)
-            except Exception:
+            except Exception as exc:
                 if live_serial is not None:
                     try:
                         live_serial.close()
                     except Exception:
                         pass
                     live_serial = None
-                raise
+                    save_runtime_state(serial_port=None, last_error=str(exc))
+                    print(f"serial live bridge reset after error: {exc}", flush=True)
+                    emit_payloads(args, usage, payloads, pet_dir, pet_anim_state, None)
+                else:
+                    raise
             last_output_key = current_output_key
             last_pet_key = current_pet_key
             if changed:
