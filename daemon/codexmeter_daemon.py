@@ -681,7 +681,7 @@ def pet_sprite_rgb565(pet_dir: Path, grid: str, max_size: str,
 def write_pet_sprite_to_serial(ser: Any, pet_dir: Path, grid: str, max_size: str,
                                padding: int, frame_cells: str, crop_visible: bool,
                                anim_frames: str = "codex",
-                               anim_state: str = "running",
+                               anim_state: str = "idle",
     ack_timeout: float = 20.0) -> bool:
     if anim_frames.strip().lower() == "codex":
         samples, durations, loop_start = device_state_sequence(anim_state)
@@ -1760,7 +1760,7 @@ def codex_status_label(status: str) -> str:
 
 def codex_mascot_state(status: str) -> str:
     return {
-        "running": "running",
+        "running": "idle",
         "waiting": "waiting",
         "failed": "failed",
         "review": "review",
@@ -1916,7 +1916,7 @@ def write_payloads_to_open_serial(
     pet_frame_cells: str = "1x1",
     pet_crop_visible: bool = False,
     pet_anim_frames: str = "codex",
-    pet_anim_state: str = "running",
+    pet_anim_state: str = "idle",
 ) -> None:
     global _LAST_PET_SYNC_KEY, _LAST_PET_ATLAS_KEY, _LAST_PET_ATLAS_MAP
     global _LAST_PET_SELECT_KEY, _LAST_OUTPUT_IMAGE_KEY
@@ -2006,7 +2006,7 @@ def write_json_lines_to_serial(
     pet_frame_cells: str = "1x1",
     pet_crop_visible: bool = False,
     pet_anim_frames: str = "codex",
-    pet_anim_state: str = "running",
+    pet_anim_state: str = "idle",
     baud: int = 921600,
 ) -> None:
     try:
@@ -2198,6 +2198,35 @@ def read_usage(args: argparse.Namespace) -> UsagePayload:
         account = client.read_account()
         rates = client.read_rate_limits()
     return build_usage_payload(account, rates, args.limit)
+
+
+def usage_error_payload(message: str) -> UsagePayload:
+    text = limit_text(message, 96)
+    payload = {
+        "kind": "codex_usage",
+        "ok": False,
+        "plan": "--",
+        "limit": "codex",
+        "p": 0,
+        "pr": 0,
+        "prl": "--",
+        "w": 0,
+        "wr": 0,
+        "wrl": "--",
+        "st": "error",
+        "err": text,
+    }
+    return UsagePayload(payload=payload, summary=f"usage unavailable: {text}")
+
+
+def read_usage_for_watch(args: argparse.Namespace, previous: UsagePayload | None = None) -> UsagePayload:
+    try:
+        return read_usage(args)
+    except (CodexAppServerError, OSError, RuntimeError) as exc:
+        message = f"usage read failed: {exc}"
+        print(message, flush=True)
+        save_runtime_state(last_error=message)
+        return previous or usage_error_payload(str(exc))
 
 
 def build_payloads(args: argparse.Namespace,
@@ -2501,7 +2530,7 @@ def main() -> int:
     parser.add_argument("--project", default=None, help="project name override for the display")
     parser.add_argument("--output-text", default=None, help="output text override for the display")
     parser.add_argument("--pet-dir", type=Path, default=None, help="Codex pet directory")
-    parser.add_argument("--pet-state", default="thinking", help="pet state for --once")
+    parser.add_argument("--pet-state", default="idle", help="pet state for --once")
     parser.add_argument("--pet-preview", type=Path, default=None, metavar="PET_DIR", help="export preview frames")
     parser.add_argument("--preview-out", type=Path, default=Path("assets/generated/mikoto/frames"))
     parser.add_argument("--preview-grid", default="8x9", help="spritesheet grid, e.g. 8x9")
@@ -2542,7 +2571,7 @@ def main() -> int:
                     last_marker: tuple[Any, ...] | None = None
                     last_output_key: tuple[Any, ...] | None = None
                     last_pet_key: tuple[Any, ...] | None = None
-                    cached_usage = read_usage(args)
+                    cached_usage = read_usage_for_watch(args)
                     next_quota_refresh = time.monotonic()
                     while True:
                         changed, last_marker = wait_for_probe_change(
@@ -2552,7 +2581,7 @@ def main() -> int:
                         )
                         quota_due = not changed
                         if quota_due:
-                            cached_usage = read_usage(args)
+                            cached_usage = read_usage_for_watch(args, cached_usage)
                         session_list_requested = consume_session_list_request()
                         cwd = args.cwd.expanduser().resolve()
                         session_changed = (
@@ -2591,7 +2620,7 @@ def main() -> int:
         last_output_key: tuple[Any, ...] | None = None
         last_pet_key: tuple[Any, ...] | None = None
         live_serial = None
-        cached_usage = read_usage(args)
+        cached_usage = read_usage_for_watch(args)
         next_quota_refresh = time.monotonic()
         while True:
             if live_serial is None:
@@ -2604,7 +2633,7 @@ def main() -> int:
             )
             quota_due = not changed
             if quota_due:
-                cached_usage = read_usage(args)
+                cached_usage = read_usage_for_watch(args, cached_usage)
             session_list_requested = consume_session_list_request()
             cwd = args.cwd.expanduser().resolve()
             session_changed = (
